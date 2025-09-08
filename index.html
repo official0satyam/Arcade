@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bright Arcade</title>
+<style>
+  body { margin:0; font-family:Arial, sans-serif; background:linear-gradient(180deg,#fff9f2,#f0f7ff); color:#222; }
+  header { text-align:center; padding:20px; }
+  h1 { margin:0; font-size:1.8rem; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:16px; max-width:800px; margin:20px auto; padding:10px; }
+  .card { background:#fff; border-radius:14px; padding:30px 20px; text-align:center; cursor:pointer; box-shadow:0 6px 16px rgba(0,0,0,0.1); transition:transform .2s, box-shadow .2s; text-decoration:none; color:#222; }
+  .card:hover { transform:translateY(-6px); box-shadow:0 10px 24px rgba(0,0,0,0.15); }
+  .icon { font-size:40px; margin-bottom:12px; }
+</style>
+</head>
+<body>
+  <header><h1>🎡 Bright Arcade</h1></header>
+  <main class="grid">
+    <a class="card" href="snake.html">
+      <div class="icon">🐍</div>
+      <div>Snake</div>
+    </a>
+    <a class="card" href="tic.html">
+      <div class="icon">❌⭕</div>
+      <div>Tic Tac Toe</div>
+    </a>
+    <a class="card" href="rps.html">
+      <div class="icon">✊✋✌️</div>
+      <div>Rock Paper Scissors</div>
+    </a>
+    <a class="card" href="memory.html">
+      <div class="icon">🃏</div>
+      <div>Memory</div>
+    </a>
+  </main>
+</body>
+</html>
