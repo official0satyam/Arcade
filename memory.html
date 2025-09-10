@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Card Game</title>
+    <!-- Tailwind CSS for utility-first styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tone.js for web audio -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            background: linear-gradient(135deg, #f0f9ff 0%, #dbeafe 100%);
+            transition: background-color 0.5s ease;
+        }
+        .container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+        }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            grid-template-rows: repeat(6, 1fr);
+            gap: 0.5rem;
+            background-color: #e2e8f0;
+            border-radius: 1.5rem;
+            padding: 1rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        .card {
+            background-color: transparent;
+            width: 100%;
+            height: 100%;
+            perspective: 1000px;
+        }
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform-style: preserve-3d;
+            box-shadow: 5px 5px 10px #d1d9e6, -5px -5px 10px #ffffff;
+            border-radius: 1rem;
+            cursor: pointer;
+        }
+        .card:hover .card-inner:not(.is-flipped) {
+            transform: translateY(-4px) scale(1.05);
+            box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.1), -5px -5px 15px #ffffff;
+        }
+        .card-inner.is-flipped {
+            transform: rotateY(180deg);
+            box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.1), -5px -5px 15px #ffffff;
+        }
+        .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            border-radius: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .card-front {
+            background: linear-gradient(145deg, #ffffff, #f0f0f0);
+            font-size: 1.5rem; /* Smaller font for 6x6 grid */
+            transform: rotateY(180deg);
+        }
+        .card-back {
+            background: linear-gradient(145deg, #a0aec0, #cbd5e0);
+        }
+        .message-box {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            max-width: 400px;
+            background-color: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 1.5rem;
+            padding: 24px;
+            text-align: center;
+            color: #1a202c;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            z-index: 10;
+            animation: fadeIn 0.5s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translate(-50%, -40%); }
+            to { opacity: 1; transform: translate(-50%, -50%); }
+        }
+        .button {
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+        }
+        .button:active {
+            transform: translateY(0);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+
+    <!-- Main Game Container -->
+    <div class="container bg-white rounded-3xl shadow-2xl w-full max-w-4xl p-6 sm:p-8">
+
+        <!-- Main Menu Screen -->
+        <div id="menu" class="flex flex-col items-center justify-center w-full text-center p-4">
+            <h1 class="text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-indigo-600 mb-12 tracking-tighter">Memory Game</h1>
+            <div id="playCard" class="bg-white rounded-2xl shadow-xl p-8 cursor-pointer transform transition-all hover:scale-105 active:scale-95 duration-300 w-full max-w-sm">
+                <div class="text-6xl mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-green-500 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.132l-3.385 1.587a1.002 1.002 0 01-1.214-.521l-.974-2.164m4.57 3.693l-.974-2.164m4.57 3.693l-3.385-1.587m-1.214-.521a1.002 1.002 0 00-1.214-.521" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18z" />
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-green-800">Play Game</h2>
+                <p class="text-sm text-gray-500 mt-2">Find all the matching pairs</p>
+            </div>
+            <div class="mt-10">
+                <a href="#" class="text-sm text-gray-400 hover:text-gray-600 transition-colors">
+                    Back to Homepage
+                </a>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game" class="hidden flex-col items-center w-full text-center p-4">
+            <div class="flex justify-between items-center w-full max-w-xl mb-6">
+                <button id="backBtn" class="text-gray-500 hover:text-gray-700 transition-all transform hover:scale-105">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5m0 0l5-5m-5 5h12" />
+                    </svg>
+                    <span class="ml-2 text-lg font-semibold">Back</span>
+                </button>
+                <div class="text-xl font-bold text-gray-800">
+                    Moves: <span id="move-counter">0</span>
+                </div>
+                <!-- Placeholder div to balance the back button -->
+                <div class="w-8 h-8"></div>
+            </div>
+            <div id="board" class="board w-full max-w-xl aspect-square"></div>
+            
+            <div class="mt-8">
+                <button id="restartBottomBtn" class="button bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all">
+                    Restart
+                </button>
+            </div>
+        </div>
+
+        <!-- Message Box -->
+        <div id="messageBox" class="message-box">
+            <h2 id="messageTitle" class="text-3xl font-bold mb-2"></h2>
+            <p id="messageText" class="text-xl text-gray-600 mb-6"></p>
+            <button id="closeMessageBtn" class="button px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-full shadow-lg transition-all">
+                Close
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Tone.js requires user interaction to start the audio context
+        document.body.addEventListener('click', () => {
+            if (Tone.context.state !== 'running') {
+                Tone.start();
+            }
+        });
+
+        // Sound Effects
+        const flipSynth = new Tone.PolySynth(Tone.Synth).toDestination();
+        const matchSynth = new Tone.PolySynth(Tone.Synth, {
+            oscillator: { type: 'sine' },
+            envelope: {
+                attack: 0.05,
+                decay: 0.2,
+                sustain: 0.1,
+                release: 0.2
+            }
+        }).toDestination();
+        const winSynth = new Tone.MonoSynth({
+            oscillator: { type: 'triangle' },
+            envelope: {
+                attack: 0.1,
+                decay: 0.5,
+                sustain: 0,
+                release: 0.5
+            }
+        }).toDestination();
+
+        function playFlipSound() {
+            flipSynth.triggerAttackRelease('C4', '8n');
+        }
+
+        function playMatchSound() {
+            matchSynth.triggerAttackRelease(['C5', 'E5', 'G5'], '8n');
+        }
+
+        function playWinSound() {
+            winSynth.triggerAttackRelease(['C6', 'E6', 'G6'], '4n');
+        }
+
+        // UI Elements
+        const menuScreen = document.getElementById('menu');
+        const gameScreen = document.getElementById('game');
+        const playCard = document.getElementById('playCard');
+        const backBtn = document.getElementById('backBtn');
+        const restartBottomBtn = document.getElementById('restartBottomBtn');
+        const boardElement = document.getElementById('board');
+        const moveCounter = document.getElementById('move-counter');
+        const messageBox = document.getElementById('messageBox');
+        const messageTitle = document.getElementById('messageTitle');
+        const messageText = document.getElementById('messageText');
+        const closeMessageBtn = document.getElementById('closeMessageBtn');
+
+        // Game State
+        let gameActive = false;
+        let moves = 0;
+        let flippedCards = [];
+        let matchedPairs = 0;
+        const totalPairs = 18;
+        const cardEmojis = ['😊', '🌟', '🚀', '🌈', '🎉', '💡', '🔥', '💎', '🌸', '🍔', '🍎', '🍓', '🍊', '🍌', '🍍', '🍉', '🍇', '🍒'];
+        let cardsArray = [];
+
+        function showMenu() {
+            gameScreen.classList.add('hidden');
+            menuScreen.classList.remove('hidden');
+            resetGame();
+        }
+
+        function showGame() {
+            menuScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            resetGame();
+        }
+
+        function resetGame() {
+            moves = 0;
+            flippedCards = [];
+            matchedPairs = 0;
+            gameActive = true;
+            updateMoveCounter();
+            generateCards();
+            renderBoard();
+        }
+
+        function updateMoveCounter() {
+            moveCounter.textContent = moves;
+        }
+
+        function generateCards() {
+            const pairs = cardEmojis.slice(0, totalPairs);
+            cardsArray = [...pairs, ...pairs];
+            shuffle(cardsArray);
+        }
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        function renderBoard() {
+            boardElement.innerHTML = '';
+            cardsArray.forEach((emoji, index) => {
+                const cardElement = document.createElement('div');
+                cardElement.classList.add('card', 'aspect-square');
+                cardElement.dataset.index = index;
+                cardElement.innerHTML = `
+                    <div class="card-inner">
+                        <div class="card-front"><span>${emoji}</span></div>
+                        <div class="card-back"></div>
+                    </div>
+                `;
+                cardElement.addEventListener('click', handleCardClick);
+                boardElement.appendChild(cardElement);
+            });
+        }
+
+        function handleCardClick(event) {
+            if (!gameActive) return;
+
+            const card = event.currentTarget;
+            const cardInner = card.querySelector('.card-inner');
+            
+            // Do not flip if already flipped or matched
+            if (cardInner.classList.contains('is-flipped') || cardInner.classList.contains('matched') || flippedCards.length === 2) {
+                return;
+            }
+
+            // Flip the card
+            cardInner.classList.add('is-flipped');
+            playFlipSound();
+            flippedCards.push(card);
+
+            if (flippedCards.length === 2) {
+                moves++;
+                updateMoveCounter();
+                setTimeout(checkForMatch, 1000);
+            }
+        }
+        
+        function checkForMatch() {
+            const [card1, card2] = flippedCards;
+            const emoji1 = card1.querySelector('.card-front span').textContent;
+            const emoji2 = card2.querySelector('.card-front span').textContent;
+
+            if (emoji1 === emoji2) {
+                // It's a match!
+                playMatchSound();
+                card1.querySelector('.card-inner').classList.add('matched');
+                card2.querySelector('.card-inner').classList.add('matched');
+                matchedPairs++;
+                checkWin();
+            } else {
+                // Not a match, flip them back
+                card1.querySelector('.card-inner').classList.remove('is-flipped');
+                card2.querySelector('.card-inner').classList.remove('is-flipped');
+            }
+
+            flippedCards = [];
+        }
+
+        function checkWin() {
+            if (matchedPairs === totalPairs) {
+                gameActive = false;
+                playWinSound();
+                showMessage('You Won!', `You found all the pairs in ${moves} moves!`);
+            }
+        }
+        
+        function showMessage(title, text) {
+            messageTitle.textContent = title;
+            messageText.textContent = text;
+            messageBox.style.display = 'flex';
+        }
+
+        // Event Listeners
+        playCard.addEventListener('click', showGame);
+        backBtn.addEventListener('click', showMenu);
+        restartBottomBtn.addEventListener('click', resetGame);
+        closeMessageBtn.addEventListener('click', () => {
+            messageBox.style.display = 'none';
+        });
+
+        // Initialize game on page load
+        window.onload = showMenu;
+    </script>
+</body>
+</html>
+

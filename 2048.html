@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>2048 — Bright Arcade</title>
+<style>
+  :root{
+    --bg: #fffaf6;
+    --panel: #ffffff;
+    --accent: #ff6b6b;
+    --muted: #6b7280;
+    --tile-bg: #eee4da;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    background: linear-gradient(135deg,#fff9f2,#f0f7ff);
+    display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px;
+  }
+  .wrap{ width:100%; max-width:520px; }
+  .header{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    margin-bottom:14px;
+  }
+  h1{ margin:0; font-size:1.25rem; color:#222; letter-spacing:0.6px; }
+  .scores{ display:flex; gap:10px; align-items:center; }
+  .score, .best {
+    background: linear-gradient(180deg,#fff,#f7f7fb);
+    padding:10px 14px; border-radius:10px; box-shadow:0 8px 20px rgba(12,18,25,0.06);
+    min-width:84px; text-align:center;
+  }
+  .score .label, .best .label { font-size:0.75rem; color:var(--muted); }
+  .score .value, .best .value { font-weight:800; font-size:1.1rem; margin-top:6px; }
+
+  /* panel */
+  .panel{
+    background: var(--panel);
+    padding:18px;
+    border-radius:14px;
+    box-shadow: 0 18px 50px rgba(12,18,25,0.08);
+  }
+
+  .controls{ display:flex; gap:8px; margin-bottom:12px; justify-content:space-between; align-items:center; }
+  .controls .left{ display:flex; gap:8px; align-items:center; }
+  .btn{
+    border:none; padding:8px 12px; border-radius:10px; background:var(--accent); color:#fff; font-weight:700; cursor:pointer;
+    box-shadow:0 8px 20px rgba(255,107,107,0.12);
+  }
+  .btn.ghost{ background:transparent; border:1px solid rgba(0,0,0,0.06); color:#222; box-shadow:none; font-weight:600; padding:6px 10px; }
+
+  /* grid */
+  .grid{
+    width:100%;
+    aspect-ratio:1/1;
+    display:grid;
+    grid-template-columns: repeat(4,1fr);
+    gap:12px;
+    background: linear-gradient(180deg,#f2efe9,#efe9ff);
+    padding:12px;
+    border-radius:12px;
+    position:relative;
+  }
+  .cell {
+    background: rgba(255,255,255,0.4);
+    border-radius:8px;
+    min-height:0;
+    display:flex; align-items:center; justify-content:center;
+  }
+
+  /* tile */
+  .tile {
+    position:absolute;
+    display:flex; align-items:center; justify-content:center;
+    width:calc((100% - 36px) / 4); /* will be corrected via JS to exact pixel */
+    height:calc((100% - 36px) / 4);
+    border-radius:10px; font-weight:800; color:#2b2b2b;
+    transition: transform 140ms ease, left 140ms ease, top 140ms ease, font-size 140ms ease;
+    box-shadow: 0 8px 24px rgba(12,18,25,0.12);
+    user-select:none;
+  }
+
+  .tile.v2 { background:#eee4da; color:#776e65; font-size:18px; }
+  .tile.v4 { background:#ede0c8; color:#776e65; font-size:18px; }
+  .tile.v8 { background:#f2b179; color:#fff; font-size:18px; }
+  .tile.v16 { background:#f59563; color:#fff; font-size:18px; }
+  .tile.v32 { background:#f67c5f; color:#fff; font-size:18px; }
+  .tile.v64 { background:#f65e3b; color:#fff; font-size:18px; }
+  .tile.v128 { background:#edcf72; color:#fff; font-size:16px; }
+  .tile.v256 { background:#edcc61; color:#fff; font-size:16px; }
+  .tile.v512 { background:#edc850; color:#fff; font-size:16px; }
+  .tile.v1024 { background:#3c9; color:#fff; font-size:14px; }
+  .tile.v2048 { background: linear-gradient(90deg,#ffd86b,#ffb86b); color:#fff; font-size:14px; box-shadow:0 10px 30px rgba(255,184,107,0.25); }
+
+  .tile.new { transform: scale(0.1); animation: pop 160ms ease forwards; }
+  @keyframes pop { to { transform: scale(1); } }
+
+  /* overlay popups */
+  .overlay {
+    position:fixed; left:50%; top:50%; transform:translate(-50%,-50%);
+    background:#fff; padding:18px; border-radius:12px; box-shadow:0 18px 50px rgba(0,0,0,0.18);
+    z-index:9999; width:90%; max-width:360px; text-align:center;
+  }
+
+  .muted{ color:var(--muted); font-size:0.95rem; }
+
+  /* footer hint */
+  .hint { margin-top:10px; text-align:center; color:var(--muted); font-size:0.9rem; }
+
+  @media (max-width:420px){
+    .tile { font-size:14px; }
+    .score .value, .best .value { font-size:1rem; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <h1>2048 — Bright Arcade</h1>
+      <div class="scores">
+        <div class="score"><div class="label">Score</div><div class="value" id="scoreVal">0</div></div>
+        <div class="best"><div class="label">Best</div><div class="value" id="bestVal">0</div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="controls">
+        <div class="left">
+          <button id="newBtn" class="btn">New Game</button>
+          <button id="undoBtn" class="btn ghost">Undo</button>
+        </div>
+        <div><button id="aiBtn" class="btn ghost">Auto Move</button></div>
+      </div>
+
+      <div id="grid" class="grid" aria-label="2048 grid">
+        <!-- background cells -->
+        <!-- cells will be built by JS -->
+      </div>
+
+      <div class="hint muted">Use arrow keys, WASD or swipe to move. Reach 2048 to win!</div>
+    </div>
+  </div>
+
+  <!-- sounds -->
+  <audio id="sndMove" src="https://actions.google.com/sounds/v1/cartoon/pop.ogg"></audio>
+  <audio id="sndMerge" src="https://actions.google.com/sounds/v1/cartoon/short_cork_pop.ogg"></audio>
+  <audio id="sndWin" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
+  <audio id="sndLose" src="https://actions.google.com/sounds/v1/cartoon/metal_twang.ogg"></audio>
+
+<script>
+/* 2048 game implementation in a single file
+   - Grid 4x4
+   - Arrow keys and swipe support
+   - Score and best saved in localStorage
+   - Win at 2048; gameover when no moves
+   - Smooth tile animations, sounds
+   - Undo (single-step) and simple AI move (one heuristic)
+*/
+
+/* Utility */
+function $(s){ return document.querySelector(s); }
+function create(tag, cls){ const e = document.createElement(tag); if(cls) e.className = cls; return e; }
+
+/* Game constants */
+const SIZE = 4;
+const TARGET = 2048;
+const storageBestKey = 'arcade_2048_best';
+
+/* DOM */
+const gridEl = $('#grid');
+const scoreEl = $('#scoreVal');
+const bestEl = $('#bestVal');
+const newBtn = $('#newBtn');
+const undoBtn = $('#undoBtn');
+const aiBtn = $('#aiBtn');
+
+const sndMove = $('#sndMove');
+const sndMerge = $('#sndMerge');
+const sndWin = $('#sndWin');
+const sndLose = $('#sndLose');
+
+/* Canvas-like tile management via absolute-positioned tile elements inside grid */
+let tileSizePx = 0;
+let boardRect;
+let cellPositions = []; // holds {left,top} pixel positions for cells
+
+/* Game state */
+let board = []; // 4x4 array numbers (0 empty)
+let score = 0;
+let best = parseInt(localStorage.getItem(storageBestKey) || '0', 10);
+bestEl.textContent = best;
+let tileElements = {}; // id -> element
+let nextTileId = 1;
+let won = false;
+let gameOver = false;
+
+/* Undo state */
+let prevState = null;
+
+/* Sounds enabled true by default */
+let soundsEnabled = true;
+function playSound(el){
+  if(!soundsEnabled) return;
+  try{ el.currentTime = 0; el.play(); }catch(e){}
+}
+
+/* Layout: create 16 background cells and compute pixel positions */
+function buildGrid(){
+  gridEl.innerHTML = '';
+  cellPositions = [];
+  // create empty 'cell' divs to show background
+  for(let r=0;r<SIZE;r++){
+    for(let c=0;c<SIZE;c++){
+      const cell = create('div','cell');
+      gridEl.appendChild(cell);
+    }
+  }
+  // after layout compute exact positions
+  requestAnimationFrame(measureCells);
+}
+
+function measureCells(){
+  boardRect = gridEl.getBoundingClientRect();
+  const first = gridEl.querySelector('.tile'); // maybe none
+  // compute tile size by measuring first background cell
+  const cellBox = gridEl.children[0].getBoundingClientRect();
+  tileSizePx = Math.round(cellBox.width);
+  // build positions
+  cellPositions = [];
+  for(let r=0;r<SIZE;r++){
+    for(let c=0;c<SIZE;c++){
+      const left = gridEl.children[r*SIZE + c].offsetLeft;
+      const top = gridEl.children[r*SIZE + c].offsetTop;
+      cellPositions.push({ left, top });
+    }
+  }
+  // adjust existing tiles' sizes/positions if any
+  for(const id in tileElements){
+    const el = tileElements[id];
+    el.style.width = tileSizePx + 'px';
+    el.style.height = tileSizePx + 'px';
+  }
+}
+
+/* Board utilities */
+function initBoard(){
+  board = Array.from({length:SIZE}, ()=> Array(SIZE).fill(0));
+  score = 0;
+  won = false;
+  gameOver = false;
+  prevState = null;
+  scoreEl.textContent = score;
+  // remove old tiles
+  for(const id in tileElements){ tileElements[id].remove(); }
+  tileElements = {};
+  nextTileId = 1;
+  // add two initial tiles
+  addRandomTile();
+  addRandomTile();
+  renderBoard();
+}
+
+function addRandomTile(){
+  const empties = [];
+  for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(board[r][c]===0) empties.push({r,c});
+  if(!empties.length) return false;
+  const pick = empties[Math.floor(Math.random()*empties.length)];
+  // 90% 2, 10% 4
+  const val = Math.random() < 0.9 ? 2 : 4;
+  board[pick.r][pick.c] = val;
+  spawnTileElement(pick.r, pick.c, val, true);
+  return true;
+}
+
+/* Tile DOM creation */
+function spawnTileElement(r,c,value,isNew=false){
+  const id = 't' + (nextTileId++);
+  const el = create('div', 'tile v' + value);
+  el.textContent = value;
+  el.dataset.r = r; el.dataset.c = c; el.dataset.value = value; el.dataset.id = id;
+  el.style.width = tileSizePx + 'px';
+  el.style.height = tileSizePx + 'px';
+  // initial absolute position
+  const pos = cellPositions[r*SIZE + c];
+  el.style.left = pos.left + 'px';
+  el.style.top = pos.top + 'px';
+  if(isNew) el.classList.add('new');
+  gridEl.appendChild(el);
+  tileElements[id] = el;
+}
+
+/* Update element style when tile value changes */
+function updateTileElement(el, value){
+  el.className = 'tile v' + value;
+  el.textContent = value;
+  el.dataset.value = value;
+}
+
+/* Move tile element to a specific r,c (with animation) */
+function moveTileElement(el, r, c){
+  const pos = cellPositions[r*SIZE + c];
+  el.style.left = pos.left + 'px';
+  el.style.top = pos.top + 'px';
+  el.dataset.r = r; el.dataset.c = c;
+}
+
+/* Render board by syncing DOM tiles to board[] */
+function renderBoard(){
+  // remove all tile elements and re-create from board state for simplicity of merge logic visual consistency
+  // (We keep IDs for animation continuity by moving existing ones when found)
+  // Simpler approach: clear and spawn all fresh tiles (with no move animation) OR we can animate. We'll do move animation using a simple diff:
+  // For reliability, easiest is clear all and spawn with 'new' class removed; but we want move visual. We'll implement a basic re-create for correct state then rely on CSS transitions of left/top for slide effect.
+  // Gather previous mapping by position -> existing element
+  const oldByPos = {};
+  for(const id in tileElements){
+    const el = tileElements[id];
+    const r = parseInt(el.dataset.r,10), c = parseInt(el.dataset.c,10);
+    oldByPos[`${r},${c},${el.dataset.value}`] = el;
+    // detach for reparent without removing transitions
+  }
+  // Remove all current tile elements from DOM temporarily (but keep references)
+  for(const id in tileElements){
+    const el = tileElements[id];
+    if(el.parentNode) el.parentNode.removeChild(el);
+  }
+  // Recreate mapping: for each board[r][c] spawn or reuse an element
+  const newMapping = {};
+  const newTileElements = {};
+  for(let r=0;r<SIZE;r++){
+    for(let c=0;c<SIZE;c++){
+      const v = board[r][c];
+      if(v === 0) continue;
+      // try to reuse any old element with same value (best-effort)
+      let reused = null;
+      // find any old element (any id) and reuse
+      for(const key in oldByPos){
+        const [or,oc,val] = key.split(',');
+        if(parseInt(val,10) === v && !oldByPos[key].__used){
+          reused = oldByPos[key];
+          oldByPos[key].__used = true;
+          break;
+        }
+      }
+      if(reused){
+        // attach back and move
+        gridEl.appendChild(reused);
+        moveTileElement(reused, r, c);
+        updateTileElement(reused, v);
+        newTileElements[reused.dataset.id] = reused;
+      } else {
+        // spawn fresh
+        spawnTileElement(r,c,v,false);
+        // latest inserted element is the last child
+        const id = Object.keys(tileElements).slice(-1)[0];
+        const lastId = 't' + (nextTileId - 1);
+        const el = tileElements[lastId];
+        // ensure non-new for immediate visible
+        if(el) el.classList.remove('new');
+        newTileElements[lastId] = el;
+      }
+    }
+  }
+  // replace tileElements with new
+  tileElements = newTileElements;
+  // update score and best
+  scoreEl.textContent = score;
+  if(score > best){ best = score; bestEl.textContent = best; localStorage.setItem(storageBestKey, best); }
+}
+
+/* Game logic: move in direction (0:left,1:up,2:right,3:down) */
+function cloneBoard(b){
+  return b.map(row => row.slice());
+}
+function savePrevState(){
+  prevState = { board: cloneBoard(board), score };
+  undoBtn.disabled = false;
+}
+function undo(){
+  if(!prevState) return;
+  board = cloneBoard(prevState.board);
+  score = prevState.score;
+  prevState = null;
+  renderBoard();
+}
+
+/* Helper to compress and merge a single line (array) */
+function slideAndMergeLine(line){
+  // line is array of numbers length SIZE
+  let moved = false;
+  let mergedScore = 0;
+  // compress
+  let arr = line.filter(v => v !== 0);
+  // merge
+  for(let i=0;i<arr.length-1;i++){
+    if(arr[i] === arr[i+1]){
+      arr[i] = arr[i]*2;
+      mergedScore += arr[i];
+      arr.splice(i+1,1);
+      arr.push(0); // maintain size via later
+    }
+  }
+  // pad zeros
+  while(arr.length < SIZE) arr.push(0);
+  // check moved
+  for(let i=0;i<SIZE;i++){
+    if(line[i] !== arr[i]) moved = true;
+  }
+  return { newLine: arr, moved, mergedScore };
+}
+
+/* move functions */
+function moveLeft(){
+  savePrevState();
+  let movedAny = false;
+  let totalMerged = 0;
+  for(let r=0;r<SIZE;r++){
+    const row = board[r].slice();
+    const res = slideAndMergeLine(row);
+    if(res.moved) movedAny = true;
+    board[r] = res.newLine.slice();
+    totalMerged += res.mergedScore;
+  }
+  if(movedAny){ score += totalMerged; playSound(sndMove); if(totalMerged) playSound(sndMerge); addRandomTile(); renderBoard(); checkGameState(); }
+  else { prevState = null; } // no change -> undo not saved
+}
+
+function moveRight(){
+  savePrevState();
+  let movedAny = false;
+  let totalMerged = 0;
+  for(let r=0;r<SIZE;r++){
+    const row = board[r].slice().reverse();
+    const res = slideAndMergeLine(row);
+    const newRow = res.newLine.slice().reverse();
+    if(res.moved) movedAny = true;
+    board[r] = newRow;
+    totalMerged += res.mergedScore;
+  }
+  if(movedAny){ score += totalMerged; playSound(sndMove); if(totalMerged) playSound(sndMerge); addRandomTile(); renderBoard(); checkGameState(); }
+  else { prevState = null; }
+}
+
+function moveUp(){
+  savePrevState();
+  let movedAny = false;
+  let totalMerged = 0;
+  for(let c=0;c<SIZE;c++){
+    const col = [];
+    for(let r=0;r<SIZE;r++) col.push(board[r][c]);
+    const res = slideAndMergeLine(col);
+    if(res.moved) movedAny = true;
+    for(let r=0;r<SIZE;r++) board[r][c] = res.newLine[r];
+    totalMerged += res.mergedScore;
+  }
+  if(movedAny){ score += totalMerged; playSound(sndMove); if(totalMerged) playSound(sndMerge); addRandomTile(); renderBoard(); checkGameState(); }
+  else { prevState = null; }
+}
+
+function moveDown(){
+  savePrevState();
+  let movedAny = false;
+  let totalMerged = 0;
+  for(let c=0;c<SIZE;c++){
+    const col = [];
+    for(let r=SIZE-1;r>=0;r--) col.push(board[r][c]);
+    const res = slideAndMergeLine(col);
+    const newCol = res.newLine.slice().reverse();
+    if(res.moved) movedAny = true;
+    for(let r=0;r<SIZE;r++) board[r][c] = newCol[r];
+    totalMerged += res.mergedScore;
+  }
+  if(movedAny){ score += totalMerged; playSound(sndMove); if(totalMerged) playSound(sndMerge); addRandomTile(); renderBoard(); checkGameState(); }
+  else { prevState = null; }
+}
+
+/* Check win/lose */
+function hasMoves(){
+  // any empty?
+  for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(board[r][c]===0) return true;
+  // any adjacent equal?
+  for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE-1;c++) if(board[r][c] === board[r][c+1]) return true;
+  for(let c=0;c<SIZE;c++) for(let r=0;r<SIZE-1;r++) if(board[r][c] === board[r+1][c]) return true;
+  return false;
+}
+
+function checkGameState(){
+  // check for win
+  for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(board[r][c] >= TARGET && !won){
+    won = true;
+    showOverlay('You Win 🎉', `Tile ${TARGET} reached!`, true);
+    playSound(sndWin);
+    return;
+  }
+  // check game over
+  if(!hasMoves()){
+    gameOver = true;
+    showOverlay('Game Over', 'No moves left', false);
+    playSound(sndLose);
+  }
+}
+
+/* overlay */
+function showOverlay(title, message, allowContinue){
+  const overlay = create('div','overlay');
+  overlay.innerHTML = `<h2>${title}</h2><p class="muted">${message}</p>`;
+  const btnRow = create('div');
+  btnRow.style.marginTop = '12px';
+  const replay = create('button','btn'); replay.textContent = 'Play Again';
+  const close = create('button','btn ghost'); close.textContent = allowContinue ? 'Continue' : 'Close';
+  replay.addEventListener('click', ()=> {
+    overlay.remove(); initBoard(); 
+  });
+  close.addEventListener('click', ()=> {
+    overlay.remove();
+    if(!allowContinue) {} // do nothing
+  });
+  btnRow.appendChild(replay); btnRow.appendChild(close);
+  overlay.appendChild(btnRow);
+  document.body.appendChild(overlay);
+}
+
+/* Input handling */
+let touchStartX = 0, touchStartY = 0;
+function handleSwipe(dx,dy){
+  if(Math.abs(dx) > Math.abs(dy)){
+    if(dx > 30) moveRight();
+    else if(dx < -30) moveLeft();
+  } else {
+    if(dy > 30) moveDown();
+    else if(dy < -30) moveUp();
+  }
+}
+window.addEventListener('keydown', (e)=> {
+  if(gameOver) return;
+  switch(e.key){
+    case 'ArrowLeft': case 'a': case 'A': e.preventDefault(); moveLeft(); break;
+    case 'ArrowRight': case 'd': case 'D': e.preventDefault(); moveRight(); break;
+    case 'ArrowUp': case 'w': case 'W': e.preventDefault(); moveUp(); break;
+    case 'ArrowDown': case 's': case 'S': e.preventDefault(); moveDown(); break;
+  }
+});
+gridEl.addEventListener('touchstart', (ev) => {
+  const t = ev.touches[0]; touchStartX = t.clientX; touchStartY = t.clientY;
+});
+gridEl.addEventListener('touchend', (ev) => {
+  const t = ev.changedTouches[0];
+  const dx = t.clientX - touchStartX, dy = t.clientY - touchStartY;
+  handleSwipe(dx,dy);
+});
+
+/* Undo */
+undoBtn.addEventListener('click', ()=> {
+  undo();
+});
+
+/* New game */
+newBtn.addEventListener('click', ()=> initBoard());
+
+/* Auto-move basic heuristic (for testing) */
+aiBtn.addEventListener('click', ()=> {
+  // try moves in order and pick the one that yields highest immediate score
+  const moves = [
+    {fn: moveUp, name:'Up'}, {fn: moveLeft, name:'Left'}, {fn: moveRight, name:'Right'}, {fn: moveDown, name:'Down'}
+  ];
+  let bestMove = null, bestScore = -Infinity;
+  for(const mv of moves){
+    // clone board & score
+    const saveB = cloneBoard(board); const saveS = score;
+    // attempt move
+    // call move function but we need variant that doesn't commit prevState; so simulate using helper:
+    const result = simulateMove(mv.name.toLowerCase());
+    // evaluate
+    if(result.moved){
+      if(result.scoreGain > bestScore){
+        bestScore = result.scoreGain;
+        bestMove = mv;
+      }
+    }
+    // restore
+    board = saveB; score = saveS;
+  }
+  if(bestMove) bestMove.fn();
+});
+
+/* Simulate move for AI: returns {moved:boolean, scoreGain:number} */
+function simulateMove(dir){
+  let moved = false, mergedScore = 0;
+  const b = cloneBoard(board);
+  if(dir === 'left'){
+    for(let r=0;r<SIZE;r++){
+      const row = b[r].slice();
+      const res = slideAndMergeLine(row);
+      if(res.moved) moved=true;
+      b[r] = res.newLine.slice();
+      mergedScore += res.mergedScore;
+    }
+  } else if(dir === 'right'){
+    for(let r=0;r<SIZE;r++){
+      const row = b[r].slice().reverse();
+      const res = slideAndMergeLine(row);
+      const newRow = res.newLine.slice().reverse();
+      if(res.moved) moved=true;
+      b[r] = newRow;
+      mergedScore += res.mergedScore;
+    }
+  } else if(dir === 'up'){
+    for(let c=0;c<SIZE;c++){
+      const col = [];
+      for(let r=0;r<SIZE;r++) col.push(b[r][c]);
+      const res = slideAndMergeLine(col);
+      if(res.moved) moved = true;
+      for(let r=0;r<SIZE;r++) b[r][c] = res.newLine[r];
+      mergedScore += res.mergedScore;
+    }
+  } else if(dir === 'down'){
+    for(let c=0;c<SIZE;c++){
+      const col = [];
+      for(let r=SIZE-1;r>=0;r--) col.push(b[r][c]);
+      const res = slideAndMergeLine(col);
+      const newCol = res.newLine.slice().reverse();
+      if(res.moved) moved = true;
+      for(let r=0;r<SIZE;r++) b[r][c] = newCol[r];
+      mergedScore += res.mergedScore;
+    }
+  }
+  return { moved, scoreGain: mergedScore };
+}
+
+/* Init / start (FIXED) */
+// recompute cell positions on resize
+window.addEventListener('resize', measureCells);
+
+// disable undo at the very start (no previous move yet)
+if (undoBtn) undoBtn.disabled = true;
+
+// run after DOM ready to ensure grid element exists
+document.addEventListener('DOMContentLoaded', () => {
+  // build the 4x4 background cells and measure positions
+  buildGrid();
+  // measure so cellPositions[] is populated
+  measureCells();
+  // now initialize board (this will spawn tiles using cellPositions)
+  initBoard();
+  // final render to ensure everything visible
+  renderBoard();
+});
+
+// small helper to avoid clicks interfering on mobile
+gridEl.addEventListener('click', (e)=>{ /* noop to prevent propagation */ });
+
+</script>
+</body>
+</html>
